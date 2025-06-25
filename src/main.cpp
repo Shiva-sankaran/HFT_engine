@@ -16,21 +16,23 @@
 #include "scoped_timer.h"
 #include "replay.h"
 #include "trade_event.h"
+#include "trade_engine.h"
 
 
 int main() {
 
     auto start = std::chrono::steady_clock::now();
-    auto trades = load_trades("../trades.csv");
+    auto const trades  = load_trades("../trades.csv");
     auto end = std::chrono::steady_clock::now();
 
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Loaded " << trades.size() << " trades in "
             << elapsed.count() << " seconds\n";
-        
+    TradeEngine tradeEngine(3.0,5000,1.0);
     {
         ScopedTimer timer("Replay");
-        replay_with_stats(trades);
+        tradeEngine.run(trades);
+        
     
     }
 }
