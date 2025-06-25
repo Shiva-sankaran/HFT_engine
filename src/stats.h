@@ -1,9 +1,10 @@
 #pragma once
 #include "trade_event.h"
 #include <deque>
+#include <atomic>
 struct GlobalStats {
-    long long total_trades = 0;
-    long long total_alerts = 0;
+    std::atomic<long long> total_trades{0};
+    std::atomic<long long> total_alerts{0};
 
 };
 

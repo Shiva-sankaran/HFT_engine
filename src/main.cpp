@@ -28,11 +28,11 @@ int main() {
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Loaded " << trades.size() << " trades in "
             << elapsed.count() << " seconds\n";
-    TradeEngine tradeEngine(3.0,5000,1.0);
+    TradeEngine tradeEngine(4, 3.0,5000,1.0);
     {
         ScopedTimer timer("Replay");
         tradeEngine.run(trades);
         
-    
     }
+    return 0;
 }

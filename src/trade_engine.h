@@ -21,6 +21,7 @@
 class TradeEngine {
 
     private:
+        int n_symbols_;
         double threshold_pct_;
         int window_ms_;
         double speedup_;
@@ -28,18 +29,30 @@ class TradeEngine {
         ThreadSafeQueue<TradeEvent> queue_;
         std::unordered_map<std::string,SymbolStats> symbolStats_;
         GlobalStats globalStats_;
-        std::thread alert_thread_;
         std::chrono::microseconds window_time_;
+
+        std::vector<std::thread> alert_threads_;
+        std::unordered_map<std::string,std::mutex> symbolStatMutexs;
+
+        std::mutex queue_mutex_;
+        std::condition_variable cond_;
+        bool shutdown_ = false;
+
         
 
-        void spawn_alert_thread();
+        void spawn_alert_threads();
+        void stop_alert_threads();
         void process_trade(TradeEvent trade);
+        
 
 
     public:
-        TradeEngine(double threshold_pct, int window_ms, double speedup = 1.0);
+        TradeEngine(int n_symbols, double threshold_pct, int window_ms, double speedup = 1.0);
         void run(const std::vector<TradeEvent>& tradeEvents);
         void run(std::vector<TradeEvent>&& tradeEvents);
+        void start();
+        void stop();
+        void print_summary();
 
 };
 
