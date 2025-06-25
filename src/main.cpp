@@ -22,7 +22,7 @@
 int main() {
 
     auto start = std::chrono::steady_clock::now();
-    auto const trades  = load_trades("../trades.csv");
+    auto const trades  = load_trades("trades.csv");
     auto end = std::chrono::steady_clock::now();
 
     std::chrono::duration<double> elapsed = end - start;
