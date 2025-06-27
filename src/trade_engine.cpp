@@ -78,6 +78,7 @@ void TradeEngine::stop_alert_threads(){
 }
 
 
+
 void TradeEngine::process_trade(TradeEvent trade){
     if (trade.isPoisonPill) return;
 
@@ -132,6 +133,19 @@ void TradeEngine::process_trade(TradeEvent trade){
     globalStats_.processing_latency +=std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - processStartTime).count();
     
     auto latency = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - trade.received_time).count();
+    
+    auto recent = globalStats_.get_recent_latencies(50);
+    if (!recent.empty()) {
+        std::sort(recent.begin(), recent.end());
+        size_t idx = static_cast<size_t>(std::ceil(recent.size() * 0.99)) - 1;
+        idx = std::min(idx, recent.size() - 1);  // clamp to max index
+
+        long long rolling_p99 = recent[idx];
+        if (latency > 2 * rolling_p99) {
+            std::cout << fmt::format("[WARN] Latency spike: {}µs > 2×P99 ({}µs)\n", latency, rolling_p99);
+        }
+    }
+    
     {
         std::lock_guard<std::mutex> lock(globalStats_.latency_mutex);
         if (globalStats_.latency_history.size() >= globalStats_.max_latency_samples) {
@@ -142,7 +156,7 @@ void TradeEngine::process_trade(TradeEvent trade){
     
     globalStats_.total_latency += latency;
 
-    
+
     
 
 }
