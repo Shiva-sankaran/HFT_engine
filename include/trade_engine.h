@@ -40,7 +40,7 @@ class TradeEngine {
         bool shutdown_ = false;
         std::mutex globalMutexForSymbolMap_;
 
-        
+        std::ofstream latency_log_{"latency_log.csv"};
 
         
 

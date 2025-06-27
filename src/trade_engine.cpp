@@ -9,7 +9,11 @@ TradeEngine::TradeEngine(int n_symbols, double threshold_pct, int window_ms, std
     DataQueue(DataQueue),
     speedup_(speedup),
     running_(true),
-    window_time_(window_ms){std::cout<<"Trade Engine Intialized"<<std::endl;}
+    window_time_(window_ms){
+        std::cout<<"Trade Engine Intialized"<<std::endl;
+        latency_log_ << "SYMBOL,TIMESTAMP,LATENCY(µs)\n";
+    
+    }
     
 
 void TradeEngine::start(){
@@ -155,6 +159,9 @@ void TradeEngine::process_trade(TradeEvent trade){
     }
     
     globalStats_.total_latency += latency;
+
+    latency_log_ << symbol << "," << trade.timestamp.count() << "," << latency << "\n";
+
 
 
     
