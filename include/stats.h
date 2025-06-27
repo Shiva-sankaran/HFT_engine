@@ -2,10 +2,17 @@
 #include "trade_event.h"
 #include <deque>
 #include <atomic>
+#include <mutex>
 struct GlobalStats {
     std::atomic<long long> total_trades{0};
     std::atomic<long long> total_alerts{0};
     std::atomic<long long> total_latency{0};
+    std::atomic<long long> processing_latency{0};
+    std::atomic<long long> wait_latency{0};
+
+    std::deque<long long> latency_history;
+    mutable std::mutex latency_mutex;
+    int max_latency_samples = 10000;
 
 };
 

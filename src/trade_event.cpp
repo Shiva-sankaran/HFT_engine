@@ -20,7 +20,7 @@ TradeEvent parse_line(const std::string& line) {
 
     int volume = std::stoi(std::string(view.substr(pos)));
 
-    return {timestamp, std::move(symbol), price, volume};
+    return {timestamp, std::move(symbol), price, volume,std::chrono::steady_clock::time_point{} };
 }
 
 TradeEvent parse_json(const std::string& line) {
@@ -31,7 +31,7 @@ TradeEvent parse_json(const std::string& line) {
     int volume = j.at("volume").get<int>();
     auto timestamp = std::chrono::microseconds(j.at("timestamp").get<int64_t>());
 
-    return {timestamp, std::move(symbol), price, volume};
+    return {timestamp, std::move(symbol), price, volume, std::chrono::steady_clock::time_point{}};
 }
 
 

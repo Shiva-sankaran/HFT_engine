@@ -9,8 +9,8 @@ struct TradeEvent {
     std::string symbol;  // now owns the memory
     double price;
     int volume;
-    bool isPoisonPill = false;
     std::chrono::steady_clock::time_point received_time;
+    bool isPoisonPill = false;
 
 };
 
