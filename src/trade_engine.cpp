@@ -1,36 +1,16 @@
 #include "trade_engine.h"
 
 
-TradeEngine::TradeEngine(int n_symbols, double threshold_pct, int window_ms, double speedup)
+TradeEngine::TradeEngine(int n_symbols, double threshold_pct, int window_ms, std::shared_ptr<ThreadSafeQueue<TradeEvent>> DataQueue, double speedup)
     :        
     n_symbols_(n_symbols),
     threshold_pct_(threshold_pct),
     window_ms_(window_ms),
+    DataQueue(DataQueue),
     speedup_(speedup),
     running_(true),
     window_time_(window_ms){std::cout<<"Trade Engine Intialized"<<std::endl;}
     
-void TradeEngine::run(const std::vector<TradeEvent>& tradeEvents){
-
-    if (tradeEvents.empty()) return;
-    start();
-
-    auto base_time = std::chrono::steady_clock::now();  
-    auto base_event = tradeEvents[0].timestamp;     
-    
-    
-    for (const auto& trade : tradeEvents) {
-        auto event_offset = trade.timestamp - base_event;
-        std::this_thread::sleep_until(base_time + event_offset);
-        queue_.push(trade);
-
-    }
-
-    stop();
-    print_summary();
-
-
-}
 
 void TradeEngine::start(){
     std::cout<<"Starting Trade Engine" << std::endl;
@@ -42,7 +22,7 @@ void TradeEngine::stop(){
     for (int i = 0; i < n_symbols_; ++i) {
         TradeEvent poison;
         poison.isPoisonPill = true;
-        queue_.push(poison);
+        DataQueue->push(poison);
     }
     stop_alert_threads();
     std::cout<<"Stopped trading engine" << std::endl;
@@ -63,7 +43,7 @@ void TradeEngine::spawn_alert_threads(){
         alert_threads_.emplace_back(std::thread([this]() {
         
         while (true) {
-            TradeEvent trade = queue_.pop_blocking();
+            TradeEvent trade = DataQueue->pop_blocking();
             if (trade.isPoisonPill) break;  // Exit this thread
             process_trade(trade);
         }
@@ -85,9 +65,19 @@ void TradeEngine::stop_alert_threads(){
 
 void TradeEngine::process_trade(TradeEvent trade){
     if (trade.isPoisonPill) return;
-    std::lock_guard symbolLock(symbolStatMutexs[trade.symbol]);
 
-    auto& stats = symbolStats_[trade.symbol];
+    std::string symbol = trade.symbol;
+    symbol.erase(std::remove_if(symbol.begin(), symbol.end(), ::isspace), symbol.end());
+    {
+        std::lock_guard<std::mutex> mapLock(globalMutexForSymbolMap_);
+        if(symbolStatMutexs.find(symbol) == symbolStatMutexs.end()){
+            symbolStatMutexs[symbol];
+        }
+    }
+    std::lock_guard symbolLock(symbolStatMutexs[symbol]);
+
+    auto& stats = symbolStats_[symbol];
+    std::cout << "Window size for " << symbol << ": " << stats.window.size() << std::endl;
 
     while(stats.window.size() != 0){
         TradeEvent ltrade = stats.window[0];
@@ -108,10 +98,10 @@ void TradeEngine::process_trade(TradeEvent trade){
     stats.vwap_numerator += trade.price * trade.volume;
     stats.total_volume += trade.volume;
     double vwap = stats.vwap_numerator/stats.total_volume;
-    std::cout << "SYMBOL: " << trade.symbol
+    std::cout << "SYMBOL: " << symbol
                 << " PRICE: " << trade.price
                 << " VOL: " << trade.volume << "\n";
-    std::cout << "--> VWAP: "<<vwap<<"  TOTAL VOL: "<<symbolStats_[trade.symbol].total_volume <<std::endl;
+    std::cout << "--> VWAP: "<<vwap<<"  TOTAL VOL: "<<symbolStats_[symbol].total_volume <<std::endl;
 
     float deviation = std::abs(100* (trade.price - vwap)/vwap);
 
@@ -119,6 +109,6 @@ void TradeEngine::process_trade(TradeEvent trade){
     if(deviation > threshold_pct_){
         stats.total_alerts++;
         globalStats_.total_alerts++;
-        std::cout << fmt::format("ALERT: {} trade at ${:.2f} deviates {:.2f}% from VWAP (${:.2f})", trade.symbol,trade.price,deviation,vwap) << std::endl;
+        std::cout << fmt::format("ALERT: {} trade at ${:.2f} deviates {:.2f}% from VWAP (${:.2f})", symbol,trade.price,deviation,vwap) << std::endl;
     }
 }

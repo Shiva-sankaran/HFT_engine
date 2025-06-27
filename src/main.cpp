@@ -13,26 +13,33 @@
 #include <unordered_map>
 
 #include "stats.h"
-#include "scoped_timer.h"
+#include "util/scoped_timer.h"
 #include "replay.h"
 #include "trade_event.h"
 #include "trade_engine.h"
+#include "network/client.h"
 
 
 int main() {
+    
+    auto DataQueue = std::make_shared<ThreadSafeQueue<TradeEvent>>();
+    Client client("127.0.0.1", 5000, DataQueue);
+    TradeEngine tradeEngine(4, 3.0,10000,DataQueue, 1.0 );
 
-    auto start = std::chrono::steady_clock::now();
-    auto const trades  = load_trades("trades.csv");
-    auto end = std::chrono::steady_clock::now();
+    client.start();
+    std::thread listenerThread([&client]() {
+        std::cout<<"Listener Thread Started" << std::endl;
+        client.listen();
+    });
 
-    std::chrono::duration<double> elapsed = end - start;
-    std::cout << "Loaded " << trades.size() << " trades in "
-            << elapsed.count() << " seconds\n";
-    TradeEngine tradeEngine(4, 3.0,5000,1.0);
-    {
-        ScopedTimer timer("Replay");
-        tradeEngine.run(trades);
-        
-    }
+    std::thread engineThread([&tradeEngine]() {
+        std::cout<<"Engine Thread Started" << std::endl;
+        tradeEngine.start();
+    });
+    
+    listenerThread.join();
+    engineThread.join();
+    client.stop();
+    tradeEngine.stop();
     return 0;
 }

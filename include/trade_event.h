@@ -11,10 +11,10 @@ struct TradeEvent {
     int volume;
     bool isPoisonPill = false;
 
-    
 
 };
 
 
 TradeEvent parse_line(const std::string& line);
+TradeEvent parse_json(const std::string& line);
 std::vector<TradeEvent> load_trades(const std::string& filepath);

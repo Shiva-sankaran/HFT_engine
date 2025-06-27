@@ -17,6 +17,7 @@
 #include "trade_event.h"
 #include "replay.h"
 #include "stats.h"
+#include "network/client.h"
 
 class TradeEngine {
 
@@ -24,9 +25,9 @@ class TradeEngine {
         int n_symbols_;
         double threshold_pct_;
         int window_ms_;
+        std::shared_ptr<ThreadSafeQueue<TradeEvent>> DataQueue;
         double speedup_;
         std::atomic<bool> running_;
-        ThreadSafeQueue<TradeEvent> queue_;
         std::unordered_map<std::string,SymbolStats> symbolStats_;
         GlobalStats globalStats_;
         std::chrono::microseconds window_time_;
@@ -37,22 +38,26 @@ class TradeEngine {
         std::mutex queue_mutex_;
         std::condition_variable cond_;
         bool shutdown_ = false;
+        std::mutex globalMutexForSymbolMap_;
+
+        
 
         
 
         void spawn_alert_threads();
         void stop_alert_threads();
-        void process_trade(TradeEvent trade);
         
 
 
     public:
-        TradeEngine(int n_symbols, double threshold_pct, int window_ms, double speedup = 1.0);
+        TradeEngine(int n_symbols, double threshold_pct, int window_ms,std::shared_ptr<ThreadSafeQueue<TradeEvent>> DataQueue, double speedup = 1.0);
         void run(const std::vector<TradeEvent>& tradeEvents);
         void run(std::vector<TradeEvent>&& tradeEvents);
         void start();
         void stop();
         void print_summary();
+        void process_trade(TradeEvent trade);
+
 
 };
 
