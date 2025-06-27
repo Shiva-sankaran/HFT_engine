@@ -32,7 +32,7 @@ void TradeEngine::print_summary(){
     std::cout << "\nSummary:\n";
     std::cout << "Total trades: " << globalStats_.total_trades << '\n';
     std::cout << "Total alerts: " << globalStats_.total_alerts << '\n';
-
+    std::cout << "Latency: " << globalStats_.total_latency/globalStats_.total_trades << "µs\n";
     for (const auto& [symbol,stat] : symbolStats_) {
         std::cout << "  " << symbol << ": " << stat.total_alerts << " alerts\n";
 
@@ -111,4 +111,8 @@ void TradeEngine::process_trade(TradeEvent trade){
         globalStats_.total_alerts++;
         std::cout << fmt::format("ALERT: {} trade at ${:.2f} deviates {:.2f}% from VWAP (${:.2f})", symbol,trade.price,deviation,vwap) << std::endl;
     }
+
+    globalStats_.total_latency +=std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - trade.received_time).count();
+
+
 }

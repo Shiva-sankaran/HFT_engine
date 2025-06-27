@@ -5,6 +5,7 @@
 struct GlobalStats {
     std::atomic<long long> total_trades{0};
     std::atomic<long long> total_alerts{0};
+    std::atomic<long long> total_latency{0};
 
 };
 

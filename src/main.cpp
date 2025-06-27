@@ -39,6 +39,7 @@ int main() {
     
     listenerThread.join();
     engineThread.join();
+    tradeEngine.print_summary();
     client.stop();
     tradeEngine.stop();
     return 0;

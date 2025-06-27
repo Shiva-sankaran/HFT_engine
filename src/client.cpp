@@ -65,5 +65,7 @@ void Client::stop(){
 }
 
 void Client::handle_line(const std::string& line){
-    DataQueue->push(parse_json(line));
+    TradeEvent trade = parse_json(line);
+    trade.received_time = std::chrono::steady_clock::now();
+    DataQueue->push(trade);
 }
