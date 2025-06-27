@@ -43,6 +43,11 @@ void TradeEngine::print_summary(){
         std::cout << "  " << symbol << ": " << stat.total_alerts << " alerts\n";
 
     }
+    std::cout << "Average latency per symbol" << std::endl;
+    for (const auto& [symbol,stat] : symbolStats_) {
+        std::cout<< "  " << symbol << ": " << stat.total_latency/stat.total_trades << "µs\n";
+
+    }
 
     std::cout <<"Total Latency Histogram Bins" <<std::endl;
     {
@@ -100,6 +105,7 @@ void TradeEngine::process_trade(TradeEvent trade){
 
     auto& stats = symbolStats_[symbol];
     std::cout << "Window size for " << symbol << ": " << stats.window.size() << std::endl;
+
 
     while(stats.window.size() != 0){
         TradeEvent ltrade = stats.window[0];
@@ -159,6 +165,7 @@ void TradeEngine::process_trade(TradeEvent trade){
     }
     
     globalStats_.total_latency += latency;
+    stats.total_latency += latency;
 
     latency_log_ << symbol << "," << trade.timestamp.count() << "," << latency << "\n";
 

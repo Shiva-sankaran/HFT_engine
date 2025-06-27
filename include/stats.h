@@ -13,7 +13,6 @@ struct GlobalStats {
     std::deque<long long> latency_history;
     mutable std::mutex latency_mutex;
     int max_latency_samples = 10000;
-
     std::vector<long long> get_recent_latencies(size_t count);
 
 
@@ -25,6 +24,10 @@ struct SymbolStats {
     long long total_volume = 0;
     long long total_trades = 0;
     long long total_alerts = 0;
+
+
+    long long total_latency = 0;
+
 
 };
 
