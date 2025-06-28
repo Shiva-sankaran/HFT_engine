@@ -25,8 +25,9 @@ struct SymbolStats {
     long long total_trades = 0;
     long long total_alerts = 0;
 
-
     long long total_latency = 0;
+    long long total_lock_latency = 0;
+
 
 
 };

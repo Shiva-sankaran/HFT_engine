@@ -14,6 +14,28 @@ class ThreadSafeQueue {
 
     public:
 
+        ThreadSafeQueue() = default;
+
+        // Delete copy constructor & copy assignment
+        ThreadSafeQueue(const ThreadSafeQueue&) = delete;
+        ThreadSafeQueue& operator=(const ThreadSafeQueue&) = delete;
+
+        // Allow move constructor
+        ThreadSafeQueue(ThreadSafeQueue&& other) noexcept {
+            std::lock_guard<std::mutex> lock(other.mutex_);
+            queue_ = std::move(other.queue_);
+        }
+
+        // Allow move assignment
+        ThreadSafeQueue& operator=(ThreadSafeQueue&& other) noexcept {
+            if (this != &other) {
+                std::lock_guard<std::mutex> lock1(mutex_);
+                std::lock_guard<std::mutex> lock2(other.mutex_);
+                queue_ = std::move(other.queue_);
+            }
+            return *this;
+        }
+
         void push(const T& value){
 
             {

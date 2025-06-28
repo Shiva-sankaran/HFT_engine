@@ -24,8 +24,7 @@ int main() {
     
     auto DataQueue = std::make_shared<ThreadSafeQueue<TradeEvent>>();
     Client client("127.0.0.1", 5000, DataQueue);
-    TradeEngine tradeEngine(4, 3.0,10000,DataQueue, 1.0 );
-
+    TradeEngine tradeEngine(4,4, 3.0,10000,DataQueue, 1.0 );
     client.start();
     std::thread listenerThread([&client]() {
         std::cout<<"Listener Thread Started" << std::endl;

@@ -1,34 +1,41 @@
 #include "trade_engine.h"
 
 
-TradeEngine::TradeEngine(int n_symbols, double threshold_pct, int window_ms, std::shared_ptr<ThreadSafeQueue<TradeEvent>> DataQueue, double speedup)
+TradeEngine::TradeEngine(int n_symbols, int n_workers, double threshold_pct, int window_ms, std::shared_ptr<ThreadSafeQueue<TradeEvent>> DataQueue, double speedup)
     :        
     n_symbols_(n_symbols),
+    n_workers_(n_workers),
     threshold_pct_(threshold_pct),
     window_ms_(window_ms),
-    DataQueue(DataQueue),
     speedup_(speedup),
     running_(true),
-    window_time_(window_ms){
+    window_time_(window_ms),
+    mainDataQueue(DataQueue)
+    {
+        workerDataQueues.resize(n_workers);
         std::cout<<"Trade Engine Intialized"<<std::endl;
         latency_log_ << "SYMBOL,TIMESTAMP,LATENCY(µs)\n";
     
     }
-    
 
 void TradeEngine::start(){
     std::cout<<"Starting Trade Engine" << std::endl;
-    spawn_alert_threads();
+    spawn_dispatcher();
+    spawn_workers();
 }
 
 void TradeEngine::stop(){
     running_ = false;
-    for (int i = 0; i < n_symbols_; ++i) {
+    for (int i = 0; i < n_workers_; ++i) {
         TradeEvent poison;
         poison.isPoisonPill = true;
-        DataQueue->push(poison);
+        workerDataQueues[i].push(poison);
     }
-    stop_alert_threads();
+    stop_workers();
+    TradeEvent poison;
+    poison.isPoisonPill = true;
+    mainDataQueue->push(poison);
+    stop_dispatcher();
     std::cout<<"Stopped trading engine" << std::endl;
 }
 
@@ -49,6 +56,7 @@ void TradeEngine::print_summary(){
 
     }
 
+
     std::cout <<"Total Latency Histogram Bins" <<std::endl;
     {
         std::lock_guard<std::mutex> lock(globalStats_.latency_mutex);
@@ -61,32 +69,66 @@ void TradeEngine::print_summary(){
         }
     }
 
+    std::cout << "Symbol to worker thread mapping" << std::endl;
+
+    for (const auto& [symbol,worderidx] : symbolToWorkerMap){
+        std::cout<< "  " << symbol << ": " << worderidx << std::endl;
+    }
+
 }
-void TradeEngine::spawn_alert_threads(){
-    for(int i=0;i<n_symbols_;i++){
-        alert_threads_.emplace_back(std::thread([this]() {
+
+void TradeEngine::spawn_dispatcher() {
+    dispatcher = std::thread([this]() {
+        std::cout << "Spawning dispatcher" << std::endl;
+        int i = 0;
+        while (true) {
+            TradeEvent trade = mainDataQueue->pop_blocking();
+            if (trade.isPoisonPill) {
+                break;
+            }
+        
+            if (symbolToWorkerMap.find(trade.symbol) == symbolToWorkerMap.end()) {
+                symbolToWorkerMap[trade.symbol] = i % n_workers_;
+                i++;
+            }
+            workerDataQueues[symbolToWorkerMap[trade.symbol]].push(trade);
+        }
+        std::cout << "Spawned dispatcher" << std::endl;
+    });
+}
+
+
+void TradeEngine::spawn_workers(){
+    for(int i=0;i<n_workers_;i++){
+        workers.emplace_back(std::thread([i,this]() {
         
         while (true) {
-            TradeEvent trade = DataQueue->pop_blocking();
+            TradeEvent trade = workerDataQueues[i].pop_blocking();
             if (trade.isPoisonPill) break;  // Exit this thread
             process_trade(trade);
         }
         }));
-        std::cout << "Spawned aleart thread" << std::endl;
+        std::cout << "Spawned worker: "<< i << std::endl;
 
     }
     
 }
 
-void TradeEngine::stop_alert_threads(){
-    for(auto& alert_thread: alert_threads_){
-        alert_thread.join();
-        std::cout << "Stopped aleart thread" << std::endl;
-    }
+
+void TradeEngine::stop_dispatcher(){
+    dispatcher.join();
+    std::cout << "Stopped dispathcer thread " << std::endl;
     
 }
 
 
+void TradeEngine::stop_workers(){
+    for (size_t i = 0; i < workers.size(); ++i) {
+        workers[i].join();
+        std::cout << "Stopped worker thread: " << i << std::endl;
+    }
+    
+}
 
 void TradeEngine::process_trade(TradeEvent trade){
     if (trade.isPoisonPill) return;
@@ -94,17 +136,9 @@ void TradeEngine::process_trade(TradeEvent trade){
     globalStats_.wait_latency +=std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - trade.received_time).count();
     std::chrono::steady_clock::time_point processStartTime = std::chrono::steady_clock::now();
     std::string symbol = trade.symbol;
-    symbol.erase(std::remove_if(symbol.begin(), symbol.end(), ::isspace), symbol.end());
-    {
-        std::lock_guard<std::mutex> mapLock(globalMutexForSymbolMap_);
-        if(symbolStatMutexs.find(symbol) == symbolStatMutexs.end()){
-            symbolStatMutexs[symbol];
-        }
-    }
-    std::lock_guard symbolLock(symbolStatMutexs[symbol]);
-
+  
     auto& stats = symbolStats_[symbol];
-    std::cout << "Window size for " << symbol << ": " << stats.window.size() << std::endl;
+    // std::cout << "Window size for " << symbol << ": " << stats.window.size() << std::endl;
 
 
     while(stats.window.size() != 0){
@@ -126,10 +160,10 @@ void TradeEngine::process_trade(TradeEvent trade){
     stats.vwap_numerator += trade.price * trade.volume;
     stats.total_volume += trade.volume;
     double vwap = stats.vwap_numerator/stats.total_volume;
-    std::cout << "SYMBOL: " << symbol
-                << " PRICE: " << trade.price
-                << " VOL: " << trade.volume << "\n";
-    std::cout << "--> VWAP: "<<vwap<<"  TOTAL VOL: "<<symbolStats_[symbol].total_volume <<std::endl;
+    // std::cout << "SYMBOL: " << symbol
+    //             << " PRICE: " << trade.price
+    //             << " VOL: " << trade.volume << "\n";
+    // std::cout << "--> VWAP: "<<vwap<<"  TOTAL VOL: "<<stats.total_volume <<std::endl;
 
     float deviation = std::abs(100* (trade.price - vwap)/vwap);
 
@@ -168,8 +202,7 @@ void TradeEngine::process_trade(TradeEvent trade){
     stats.total_latency += latency;
 
     latency_log_ << symbol << "," << trade.timestamp.count() << "," << latency << "\n";
-
-
+    latency_log_.flush();
 
     
 

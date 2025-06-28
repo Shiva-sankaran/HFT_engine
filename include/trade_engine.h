@@ -23,34 +23,37 @@ class TradeEngine {
 
     private:
         int n_symbols_;
+        int n_workers_;
         double threshold_pct_;
         int window_ms_;
-        std::shared_ptr<ThreadSafeQueue<TradeEvent>> DataQueue;
         double speedup_;
+        bool shutdown_ = false;
         std::atomic<bool> running_;
+
+        std::chrono::microseconds window_time_;
         std::unordered_map<std::string,SymbolStats> symbolStats_;
         GlobalStats globalStats_;
-        std::chrono::microseconds window_time_;
 
-        std::vector<std::thread> alert_threads_;
-        std::unordered_map<std::string,std::mutex> symbolStatMutexs;
+        std::thread dispatcher;
+        std::vector<std::thread> workers;
+        
 
-        std::mutex queue_mutex_;
-        std::condition_variable cond_;
-        bool shutdown_ = false;
-        std::mutex globalMutexForSymbolMap_;
+        std::shared_ptr<ThreadSafeQueue<TradeEvent>> mainDataQueue;
+        std::vector<ThreadSafeQueue<TradeEvent>> workerDataQueues;
+
+        std::unordered_map<std::string,int> symbolToWorkerMap;
 
         std::ofstream latency_log_{"latency_log.csv"};
 
-        
-
-        void spawn_alert_threads();
-        void stop_alert_threads();
+        void spawn_dispatcher();
+        void spawn_workers();
+        void stop_dispatcher();
+        void stop_workers();
         
 
 
     public:
-        TradeEngine(int n_symbols, double threshold_pct, int window_ms,std::shared_ptr<ThreadSafeQueue<TradeEvent>> DataQueue, double speedup = 1.0);
+        TradeEngine(int n_symbols,int n_workers,  double threshold_pct, int window_ms,std::shared_ptr<ThreadSafeQueue<TradeEvent>> DataQueue, double speedup = 1.0);
         void run(const std::vector<TradeEvent>& tradeEvents);
         void run(std::vector<TradeEvent>&& tradeEvents);
         void start();
