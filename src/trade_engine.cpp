@@ -103,6 +103,13 @@ void TradeEngine::spawn_workers(){
         std::cout << "Spawing worker: " << i <<std::endl;
         workers.emplace_back(std::thread([i,this]() {
         
+        // unsigned int n_cores = std::thread::hardware_concurrency();
+        // int core_id = i % n_cores;
+        // cpu_set_t cpuset;
+        // CPU_ZERO(&cpuset);
+        // CPU_SET(core_id, &cpuset);  // pin thread i to core i
+        // pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+
         while (true) {
             TradeEvent trade = workerDataQueues[i]->pop_blocking();
             if (trade.isPoisonPill) break;  // Exit this thread

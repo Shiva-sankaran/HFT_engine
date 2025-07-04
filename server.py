@@ -36,7 +36,7 @@ def handle_client(conn, addr, base_timestamp, n_trades, interval_us, symbols):
 def main():
     host = '127.0.0.1'
     port = 5000
-    N_TRADES = 100
+    N_TRADES = 1000
     MICROSECOND_INTERVAL = 100_000  # 100 ms
     base_timestamp = 1_750_000_000_000_000
 
