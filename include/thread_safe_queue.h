@@ -44,6 +44,15 @@ class ThreadSafeQueue {
             }
             cond_.notify_one();
         }
+        void push_with_timestamp(TradeEvent value){
+
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                value.received_time = std::chrono::steady_clock::now();
+                queue_.push_back(value);
+            }
+            cond_.notify_one();
+        }
 
         T pop_blocking(){
             std::unique_lock<std::mutex> lock(mutex_);

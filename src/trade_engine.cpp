@@ -1,7 +1,7 @@
 #include "trade_engine.h"
 
 
-TradeEngine::TradeEngine(int n_symbols, int n_workers, double threshold_pct, int window_ms, std::shared_ptr<ThreadSafeQueue<TradeEvent>> DataQueue, double speedup)
+TradeEngine::TradeEngine(int n_symbols, int n_workers, double threshold_pct, int window_ms, std::vector<std::shared_ptr<ThreadSafeQueue<TradeEvent>>> workerDataQueues, double speedup)
     :        
     n_symbols_(n_symbols),
     n_workers_(n_workers),
@@ -10,9 +10,8 @@ TradeEngine::TradeEngine(int n_symbols, int n_workers, double threshold_pct, int
     speedup_(speedup),
     running_(true),
     window_time_(window_ms),
-    mainDataQueue(DataQueue)
+    workerDataQueues(workerDataQueues)
     {
-        workerDataQueues.resize(n_workers);
         std::cout<<"Trade Engine Intialized"<<std::endl;
         latency_log_ << "SYMBOL,TIMESTAMP,LATENCY(µs)\n";
     
@@ -20,7 +19,8 @@ TradeEngine::TradeEngine(int n_symbols, int n_workers, double threshold_pct, int
 
 void TradeEngine::start(){
     std::cout<<"Starting Trade Engine" << std::endl;
-    spawn_dispatcher();
+    std::cout << "Size of workerqueue: " << workerDataQueues.size() << std::endl;
+    // spawn_dispatcher();
     spawn_workers();
 }
 
@@ -29,13 +29,13 @@ void TradeEngine::stop(){
     for (int i = 0; i < n_workers_; ++i) {
         TradeEvent poison;
         poison.isPoisonPill = true;
-        workerDataQueues[i].push(poison);
+        workerDataQueues[i]->push(poison);
     }
     stop_workers();
-    TradeEvent poison;
-    poison.isPoisonPill = true;
-    mainDataQueue->push(poison);
-    stop_dispatcher();
+    // TradeEvent poison;
+    // poison.isPoisonPill = true;
+    // mainDataQueue->push(poison);
+    // stop_dispatcher();
     std::cout<<"Stopped trading engine" << std::endl;
 }
 
@@ -71,39 +71,40 @@ void TradeEngine::print_summary(){
 
     std::cout << "Symbol to worker thread mapping" << std::endl;
 
-    for (const auto& [symbol,worderidx] : symbolToWorkerMap){
-        std::cout<< "  " << symbol << ": " << worderidx << std::endl;
-    }
+    // for (const auto& [symbol,worderidx] : symbolToWorkerMap){
+    //     std::cout<< "  " << symbol << ": " << worderidx << std::endl;
+    // }
 
 }
 
-void TradeEngine::spawn_dispatcher() {
-    dispatcher = std::thread([this]() {
-        std::cout << "Spawning dispatcher" << std::endl;
-        int i = 0;
-        while (true) {
-            TradeEvent trade = mainDataQueue->pop_blocking();
-            if (trade.isPoisonPill) {
-                break;
-            }
+// void TradeEngine::spawn_dispatcher() {
+//     dispatcher = std::thread([this]() {
+//         std::cout << "Spawning dispatcher" << std::endl;
+//         int i = 0;
+//         while (true) {
+//             TradeEvent trade = mainDataQueue->pop_blocking();
+//             if (trade.isPoisonPill) {
+//                 break;
+//             }
         
-            if (symbolToWorkerMap.find(trade.symbol) == symbolToWorkerMap.end()) {
-                symbolToWorkerMap[trade.symbol] = i % n_workers_;
-                i++;
-            }
-            workerDataQueues[symbolToWorkerMap[trade.symbol]].push(trade);
-        }
-        std::cout << "Spawned dispatcher" << std::endl;
-    });
-}
+//             if (symbolToWorkerMap.find(trade.symbol) == symbolToWorkerMap.end()) {
+//                 symbolToWorkerMap[trade.symbol] = i % n_workers_;
+//                 i++;
+//             }
+//             workerDataQueues[symbolToWorkerMap[trade.symbol]].push(trade);
+//         }
+//         std::cout << "Spawned dispatcher" << std::endl;
+//     });
+// }
 
 
 void TradeEngine::spawn_workers(){
     for(int i=0;i<n_workers_;i++){
+        std::cout << "Spawing worker: " << i <<std::endl;
         workers.emplace_back(std::thread([i,this]() {
         
         while (true) {
-            TradeEvent trade = workerDataQueues[i].pop_blocking();
+            TradeEvent trade = workerDataQueues[i]->pop_blocking();
             if (trade.isPoisonPill) break;  // Exit this thread
             process_trade(trade);
         }

@@ -38,10 +38,9 @@ class TradeEngine {
         std::vector<std::thread> workers;
         
 
-        std::shared_ptr<ThreadSafeQueue<TradeEvent>> mainDataQueue;
-        std::vector<ThreadSafeQueue<TradeEvent>> workerDataQueues;
+        std::vector<std::shared_ptr<ThreadSafeQueue<TradeEvent>>> workerDataQueues;
 
-        std::unordered_map<std::string,int> symbolToWorkerMap;
+        
 
         std::ofstream latency_log_{"latency_log.csv"};
 
@@ -53,7 +52,7 @@ class TradeEngine {
 
 
     public:
-        TradeEngine(int n_symbols,int n_workers,  double threshold_pct, int window_ms,std::shared_ptr<ThreadSafeQueue<TradeEvent>> DataQueue, double speedup = 1.0);
+        TradeEngine(int n_symbols,int n_workers,  double threshold_pct, int window_ms,std::vector<std::shared_ptr<ThreadSafeQueue<TradeEvent>>> workerDataQueues, double speedup = 1.0);
         void run(const std::vector<TradeEvent>& tradeEvents);
         void run(std::vector<TradeEvent>&& tradeEvents);
         void start();

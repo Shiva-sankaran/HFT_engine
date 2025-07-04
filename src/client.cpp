@@ -1,11 +1,12 @@
 #include "network/client.h"
 
-Client::Client(std::string ip, int port , std::shared_ptr<ThreadSafeQueue<TradeEvent>> DataQueue)
+Client::Client(std::string ip, int port , int n_workers_, std::vector<std::shared_ptr<ThreadSafeQueue<TradeEvent>>> WorkerQueues)
     :
     ip(std::move(ip)),
     port(port),
     running(true),
-    DataQueue(DataQueue){
+    n_workers_(n_workers_),
+    WorkerQueues(WorkerQueues){
         sock = socket(AF_INET, SOCK_STREAM, 0);
         if (sock < 0) {
             perror("socket failed");
@@ -52,7 +53,7 @@ void Client::listen(){
         size_t pos;
         while ((pos = partial.find('\n')) != std::string::npos) {
             std::string line = partial.substr(0, pos);
-            std::cout << "Received: " << line << std::endl;
+            // std::cout << "Received: " << line << std::endl;
             handle_line(line);
             partial.erase(0, pos + 1);
         }
@@ -65,7 +66,15 @@ void Client::stop(){
 }
 
 void Client::handle_line(const std::string& line){
+    static int i = 0;
     TradeEvent trade = parse_json(line);
-    trade.received_time = std::chrono::steady_clock::now();
-    DataQueue->push(trade);
+    if (symbolToWorkerMap.find(trade.symbol) == symbolToWorkerMap.end()) {
+        symbolToWorkerMap[trade.symbol] = i % n_workers_;
+        i++;
+    }
+
+
+    WorkerQueues[symbolToWorkerMap[trade.symbol]]->push_with_timestamp(trade);
+
+
 }

@@ -36,11 +36,11 @@ def handle_client(conn, addr, base_timestamp, n_trades, interval_us, symbols):
 def main():
     host = '127.0.0.1'
     port = 5000
-    N_TRADES = 5000
+    N_TRADES = 100
     MICROSECOND_INTERVAL = 100_000  # 100 ms
     base_timestamp = 1_750_000_000_000_000
 
-    N_TICKERS = 100  # You can change this to any number
+    N_TICKERS = 4  # You can change this to any number
     tickers = generate_random_tickers(N_TICKERS)
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

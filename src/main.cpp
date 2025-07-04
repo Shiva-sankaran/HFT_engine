@@ -21,10 +21,22 @@
 
 
 int main() {
-    
-    auto DataQueue = std::make_shared<ThreadSafeQueue<TradeEvent>>();
-    Client client("127.0.0.1", 5000, DataQueue);
-    TradeEngine tradeEngine(4,4, 3.0,10000,DataQueue, 1.0 );
+    int n_symbols = 4;
+    double threshold_pct = 3.0;
+    int window_ms = 10000;
+    double speed_up = 1.0;
+    std::string serverIPAddress = "127.0.0.1";
+    int serverPort = 5000;
+    int n_workers = 4;
+    std::vector<std::shared_ptr<ThreadSafeQueue<TradeEvent>>> WorkerQueues;
+    WorkerQueues.resize(n_workers);
+    for (int i = 0; i < n_workers; ++i) {
+        WorkerQueues[i] = std::make_shared<ThreadSafeQueue<TradeEvent>>();
+    }
+
+    Client client(serverIPAddress,serverPort,n_workers,WorkerQueues);
+    TradeEngine tradeEngine(n_symbols,n_workers, threshold_pct,window_ms,WorkerQueues, speed_up);
+    std::cout << "!!!!!!!!!!!!!!!!!";
     client.start();
     std::thread listenerThread([&client]() {
         std::cout<<"Listener Thread Started" << std::endl;
