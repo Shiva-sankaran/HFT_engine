@@ -1,6 +1,8 @@
 #include "network/client.h"
+#include <immintrin.h>
 
-Client::Client(std::string ip, int port , int n_workers_, std::vector<std::shared_ptr<ThreadSafeQueue<TradeEvent>>> WorkerQueues)
+
+Client::Client(std::string ip, int port , int n_workers_, std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> WorkerQueues)
     :
     ip(std::move(ip)),
     port(port),
@@ -73,8 +75,10 @@ void Client::handle_line(const std::string& line){
         i++;
     }
 
-
-    WorkerQueues[symbolToWorkerMap[trade.symbol]]->push_with_timestamp(trade);
+    trade.received_time = std::chrono::steady_clock::now();
+    while(!WorkerQueues[symbolToWorkerMap[trade.symbol]]->enque(trade)){
+        _mm_pause();
+    }
 
 
 }

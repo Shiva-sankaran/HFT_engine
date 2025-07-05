@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include "../thread_safe_queue.h"
 #include "../trade_event.h"
+#include "lock_free_queue.h"
 class Client{
     private:
         std::string ip;
@@ -22,8 +23,8 @@ class Client{
         std::unordered_map<std::string,int> symbolToWorkerMap;
 
     public:
-        std::vector<std::shared_ptr<ThreadSafeQueue<TradeEvent>>> WorkerQueues;
-        Client(std::string ip, int port, int n_workers_, std::vector<std::shared_ptr<ThreadSafeQueue<TradeEvent>>> WorkerQueues);
+        std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> WorkerQueues;
+        Client(std::string ip, int port, int n_workers_, std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> WorkerQueues);
         void start();
         void listen();
         void stop();

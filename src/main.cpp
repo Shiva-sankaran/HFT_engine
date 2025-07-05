@@ -18,6 +18,7 @@
 #include "trade_event.h"
 #include "trade_engine.h"
 #include "network/client.h"
+#include "lock_free_queue.h"
 
 
 int main() {
@@ -28,10 +29,11 @@ int main() {
     std::string serverIPAddress = "127.0.0.1";
     int serverPort = 5000;
     int n_workers = 4;
-    std::vector<std::shared_ptr<ThreadSafeQueue<TradeEvent>>> WorkerQueues;
+    size_t capacity = 1024;
+    std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> WorkerQueues;
     WorkerQueues.resize(n_workers);
     for (int i = 0; i < n_workers; ++i) {
-        WorkerQueues[i] = std::make_shared<ThreadSafeQueue<TradeEvent>>();
+        WorkerQueues[i] = std::make_shared<LockFreeQueue<TradeEvent>>(capacity);
     }
 
     Client client(serverIPAddress,serverPort,n_workers,WorkerQueues);

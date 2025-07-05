@@ -38,7 +38,7 @@ class TradeEngine {
         std::vector<std::thread> workers;
         
 
-        std::vector<std::shared_ptr<ThreadSafeQueue<TradeEvent>>> workerDataQueues;
+        std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> workerDataQueues;
 
         
 
@@ -52,7 +52,7 @@ class TradeEngine {
 
 
     public:
-        TradeEngine(int n_symbols,int n_workers,  double threshold_pct, int window_ms,std::vector<std::shared_ptr<ThreadSafeQueue<TradeEvent>>> workerDataQueues, double speedup = 1.0);
+        TradeEngine(int n_symbols,int n_workers,  double threshold_pct, int window_ms,std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> workerDataQueues, double speedup = 1.0);
         void run(const std::vector<TradeEvent>& tradeEvents);
         void run(std::vector<TradeEvent>&& tradeEvents);
         void start();

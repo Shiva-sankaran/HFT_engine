@@ -1,7 +1,7 @@
 #include "trade_engine.h"
+#include <immintrin.h>
 
-
-TradeEngine::TradeEngine(int n_symbols, int n_workers, double threshold_pct, int window_ms, std::vector<std::shared_ptr<ThreadSafeQueue<TradeEvent>>> workerDataQueues, double speedup)
+TradeEngine::TradeEngine(int n_symbols, int n_workers, double threshold_pct, int window_ms, std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> workerDataQueues, double speedup)
     :        
     n_symbols_(n_symbols),
     n_workers_(n_workers),
@@ -13,7 +13,7 @@ TradeEngine::TradeEngine(int n_symbols, int n_workers, double threshold_pct, int
     workerDataQueues(workerDataQueues)
     {
         std::cout<<"Trade Engine Intialized"<<std::endl;
-        latency_log_ << "SYMBOL,TIMESTAMP,LATENCY(µs)\n";
+        latency_log_ << "SYMBOL,TIMESTAMP,LATENCY(ns)\n";
     
     }
 
@@ -28,7 +28,10 @@ void TradeEngine::stop(){
     for (int i = 0; i < n_workers_; ++i) {
         TradeEvent poison;
         poison.isPoisonPill = true;
-        workerDataQueues[i]->push(poison);
+        while(!workerDataQueues[i]->enque(poison)){
+            _mm_pause();
+        }
+        // workerDataQueues[i]->push(poison);
     }
     stop_workers();
     std::cout<<"Stopped trading engine" << std::endl;
@@ -38,16 +41,16 @@ void TradeEngine::print_summary(){
     std::cout << "\nSummary:\n";
     std::cout << "Total trades: " << globalStats_.total_trades << '\n';
     std::cout << "Total alerts: " << globalStats_.total_alerts << '\n';
-    std::cout << "Total Latency: " << globalStats_.total_latency/globalStats_.total_trades << "µs\n";
-    std::cout << "Wait Latency: " << globalStats_.wait_latency/globalStats_.total_trades << "µs\n";
-    std::cout << "Processing Latency: " << globalStats_.processing_latency/globalStats_.total_trades << "µs\n";
+    std::cout << "Total Latency: " << globalStats_.total_latency/globalStats_.total_trades << "ns\n";
+    std::cout << "Wait Latency: " << globalStats_.wait_latency/globalStats_.total_trades << "ns\n";
+    std::cout << "Processing Latency: " << globalStats_.processing_latency/globalStats_.total_trades << "ns\n";
     for (const auto& [symbol,stat] : symbolStats_) {
         std::cout << "  " << symbol << ": " << stat.total_alerts << " alerts\n";
 
     }
     std::cout << "Average latency per symbol" << std::endl;
     for (const auto& [symbol,stat] : symbolStats_) {
-        std::cout<< "  " << symbol << ": " << stat.total_latency/stat.total_trades << "µs\n";
+        std::cout<< "  " << symbol << ": " << stat.total_latency/stat.total_trades << "ns\n";
 
     }
 
@@ -58,9 +61,9 @@ void TradeEngine::print_summary(){
         std::sort(globalStats_.latency_history.begin(), globalStats_.latency_history.end());
         if (!globalStats_.latency_history.empty()) {
             size_t n = globalStats_.latency_history.size();
-            std::cout << "P50 latency: " << globalStats_.latency_history[n / 2] << "µs\n";
-            std::cout << "P90 latency: " << globalStats_.latency_history[(n * 90) / 100] << "µs\n";
-            std::cout << "P99 latency: " << globalStats_.latency_history[(n * 99) / 100] << "µs\n";
+            std::cout << "P50 latency: " << globalStats_.latency_history[n / 2] << "ns\n";
+            std::cout << "P90 latency: " << globalStats_.latency_history[(n * 90) / 100] << "ns\n";
+            std::cout << "P99 latency: " << globalStats_.latency_history[(n * 99) / 100] << "ns\n";
         }
     }
 
@@ -85,7 +88,12 @@ void TradeEngine::spawn_workers(){
         // pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 
         while (true) {
-            TradeEvent trade = workerDataQueues[i]->pop_blocking();
+            TradeEvent trade;
+            while(!workerDataQueues[i]->deque(trade)){
+            _mm_pause();
+            }
+
+            // TradeEvent trade = workerDataQueues[i]->pop_blocking();
             if (trade.isPoisonPill) break;  // Exit this thread
             process_trade(trade);
         }
@@ -115,7 +123,7 @@ void TradeEngine::stop_workers(){
 void TradeEngine::process_trade(TradeEvent trade){
     if (trade.isPoisonPill) return;
 
-    globalStats_.wait_latency +=std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - trade.received_time).count();
+    globalStats_.wait_latency +=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - trade.received_time).count();
     std::chrono::steady_clock::time_point processStartTime = std::chrono::steady_clock::now();
     std::string symbol = trade.symbol;
   
@@ -151,9 +159,9 @@ void TradeEngine::process_trade(TradeEvent trade){
         std::cout << fmt::format("ALERT: {} trade at ${:.2f} deviates {:.2f}% from VWAP (${:.2f})", symbol,trade.price,deviation,vwap) << std::endl;
     }
 
-    globalStats_.processing_latency +=std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - processStartTime).count();
+    globalStats_.processing_latency +=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - processStartTime).count();
     
-    auto latency = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - trade.received_time).count();
+    auto latency = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - trade.received_time).count();
     
     auto recent = globalStats_.get_recent_latencies(50);
     if (!recent.empty()) {
@@ -163,7 +171,7 @@ void TradeEngine::process_trade(TradeEvent trade){
 
         long long rolling_p99 = recent[idx];
         if (latency > 2 * rolling_p99) {
-            std::cout << fmt::format("[WARN] Latency spike: {}µs > 2×P99 ({}µs)\n", latency, rolling_p99);
+            std::cout << fmt::format("[WARN] Latency spike: {}ns > 2×P99 ({}ns)\n", latency, rolling_p99);
         }
     }
     
