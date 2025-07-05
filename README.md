@@ -2,6 +2,17 @@
 
 This project implements a multi-threaded trade processing engine in modern C++17. It is designed to simulate a low-latency trading system that receives trade data over TCP, processes it in real-time, and generates alerts based on VWAP deviations.
 
+## 🚀 Current Performance
+
+- **Total average latency:** ~1.3 µs
+- **Wait latency (queue contention):** ~0.7 µs
+- **Processing latency:** ~0.5 µs
+- **P50 latency:** ~966 ns  
+- **P90 latency:** ~1.5 µs  
+- **P99 latency:** ~4.3 µs  
+
+> ⚠️ Occasional latency spikes observed due to CPU contention on local loopback: max ~16 µs
+
 ---
 
 ## 📦 Overview
