@@ -20,7 +20,6 @@ TradeEngine::TradeEngine(int n_symbols, int n_workers, double threshold_pct, int
 void TradeEngine::start(){
     std::cout<<"Starting Trade Engine" << std::endl;
     std::cout << "Size of workerqueue: " << workerDataQueues.size() << std::endl;
-    // spawn_dispatcher();
     spawn_workers();
 }
 
@@ -32,10 +31,6 @@ void TradeEngine::stop(){
         workerDataQueues[i]->push(poison);
     }
     stop_workers();
-    // TradeEvent poison;
-    // poison.isPoisonPill = true;
-    // mainDataQueue->push(poison);
-    // stop_dispatcher();
     std::cout<<"Stopped trading engine" << std::endl;
 }
 
@@ -71,31 +66,10 @@ void TradeEngine::print_summary(){
 
     std::cout << "Symbol to worker thread mapping" << std::endl;
 
-    // for (const auto& [symbol,worderidx] : symbolToWorkerMap){
-    //     std::cout<< "  " << symbol << ": " << worderidx << std::endl;
-    // }
 
 }
 
-// void TradeEngine::spawn_dispatcher() {
-//     dispatcher = std::thread([this]() {
-//         std::cout << "Spawning dispatcher" << std::endl;
-//         int i = 0;
-//         while (true) {
-//             TradeEvent trade = mainDataQueue->pop_blocking();
-//             if (trade.isPoisonPill) {
-//                 break;
-//             }
-        
-//             if (symbolToWorkerMap.find(trade.symbol) == symbolToWorkerMap.end()) {
-//                 symbolToWorkerMap[trade.symbol] = i % n_workers_;
-//                 i++;
-//             }
-//             workerDataQueues[symbolToWorkerMap[trade.symbol]].push(trade);
-//         }
-//         std::cout << "Spawned dispatcher" << std::endl;
-//     });
-// }
+
 
 
 void TradeEngine::spawn_workers(){
@@ -146,7 +120,6 @@ void TradeEngine::process_trade(TradeEvent trade){
     std::string symbol = trade.symbol;
   
     auto& stats = symbolStats_[symbol];
-    // std::cout << "Window size for " << symbol << ": " << stats.window.size() << std::endl;
 
 
     while(stats.window.size() != 0){
@@ -168,10 +141,6 @@ void TradeEngine::process_trade(TradeEvent trade){
     stats.vwap_numerator += trade.price * trade.volume;
     stats.total_volume += trade.volume;
     double vwap = stats.vwap_numerator/stats.total_volume;
-    // std::cout << "SYMBOL: " << symbol
-    //             << " PRICE: " << trade.price
-    //             << " VOL: " << trade.volume << "\n";
-    // std::cout << "--> VWAP: "<<vwap<<"  TOTAL VOL: "<<stats.total_volume <<std::endl;
 
     float deviation = std::abs(100* (trade.price - vwap)/vwap);
 
