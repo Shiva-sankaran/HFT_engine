@@ -1,14 +1,15 @@
 #include "network/client.h"
 #include <immintrin.h>
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
 
-
-Client::Client(std::string ip, int port , int n_workers_, std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> WorkerQueues)
+Client::Client(std::string ip, int port , int n_workers_, std::unordered_map<std::string, std::shared_ptr<LockFreeQueue<Order>>> symbol_to_order_book_queue)
     :
     ip(std::move(ip)),
     port(port),
     running(true),
     n_workers_(n_workers_),
-    WorkerQueues(WorkerQueues){
+    symbol_to_order_book_queue_(symbol_to_order_book_queue){
         sock = socket(AF_INET, SOCK_STREAM, 0);
         if (sock < 0) {
             perror("socket failed");
@@ -67,18 +68,26 @@ void Client::stop(){
     close(sock);
 }
 
-void Client::handle_line(const std::string& line){
-    static int i = 0;
-    TradeEvent trade = parse_json(line);
-    if (symbolToWorkerMap.find(trade.symbol) == symbolToWorkerMap.end()) {
-        symbolToWorkerMap[trade.symbol] = i % n_workers_;
-        i++;
-    }
+Order Client::parse_json(const std::string& line) {
+    json j = json::parse(line);
+    std::string symbol = j.at("symbol").get<std::string>();
+    double price = j.at("price").get<double>();
+    int volume = j.at("size").get<int>();
+    auto timestamp = std::chrono::microseconds(j.at("timestamp").get<int64_t>());
+    OrderType orderType = orderIntToTypeMap.at(j.at("type").get<int>());
+    int direction = j.at("direction").get<int>();
+    int orderID = j.at("order_id").get<int>();
 
-    trade.received_time = std::chrono::steady_clock::now();
-    while(!WorkerQueues[symbolToWorkerMap[trade.symbol]]->enque(trade)){
+    Side direction_enum = (direction == 1) ? Side::BUY : Side::SELL;
+    return Order{orderID, timestamp, std::move(symbol), direction_enum, orderType, price, volume, std::chrono::steady_clock::time_point{}};
+}
+
+void Client::handle_line(const std::string& line){
+    Order order = parse_json(line);
+    
+    order.received_time = std::chrono::steady_clock::now();
+    while(!symbol_to_order_book_queue_[order.symbol]->enque(order)){
         _mm_pause();
     }
-
 
 }

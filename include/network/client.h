@@ -9,8 +9,10 @@
 #include <unordered_map>
 #include <arpa/inet.h>
 #include "../thread_safe_queue.h"
-#include "../trade_event.h"
+#include "../order.h"
 #include "lock_free_queue.h"
+
+
 class Client{
     private:
         std::string ip;
@@ -20,14 +22,14 @@ class Client{
         struct sockaddr_in server_addr;
         char buffer[3000];
         int n_workers_;
-        std::unordered_map<std::string,int> symbolToWorkerMap;
+        std::unordered_map<std::string, std::shared_ptr<LockFreeQueue<Order>>> symbol_to_order_book_queue_;
 
     public:
-        std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> WorkerQueues;
-        Client(std::string ip, int port, int n_workers_, std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> WorkerQueues);
+        Client(std::string ip, int port, int n_workers_, std::unordered_map<std::string, std::shared_ptr<LockFreeQueue<Order>>> symbol_to_order_book_queue);
         void start();
         void listen();
         void stop();
         void handle_line(const std::string& line);
+        Order parse_json(const std::string& line);
 
 };

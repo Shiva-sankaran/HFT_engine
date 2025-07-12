@@ -18,6 +18,9 @@
 #include "replay.h"
 #include "stats.h"
 #include "network/client.h"
+#include "order_book_worker.h"
+#include "trade_processor.h"
+#include "matching_engine.h"
 
 class TradeEngine {
 
@@ -38,27 +41,51 @@ class TradeEngine {
         std::vector<std::thread> workers;
         
 
-        std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> workerDataQueues;
+        // std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> workerDataQueues;
+        // std::vector<std::shared_ptr<LockFreeQueue<Order>>> orderBookQueues;
+
+        std::vector<std::unique_ptr<OrderBookWorker>> OrderBookProcessors;
+        std::unordered_map<std::string, std::shared_ptr<LockFreeQueue<Order>>> symbol_to_order_queue_;
+        std::vector<std::thread> orderWorkers;
+
+
+        std::vector<std::unique_ptr<TradeProcessor>> TradeProcessors;
+        std::unordered_map<std::string, std::shared_ptr<LockFreeQueue<TradeEvent>>> symbol_to_trade_queue_;
+        std::vector<std::thread> tradeWorkers;
 
         
 
         std::ofstream latency_log_{"latency_log.csv"};
+        const size_t tradeQueueCapacity = 1024;
+        const size_t orderBookQueueCapacity = 8192;
 
-        void spawn_dispatcher();
-        void spawn_workers();
-        void stop_dispatcher();
-        void stop_workers();
+        void start_order_book_workers();
+        void start_trade_processor_workers();
+        void stop_order_book_workers();
+        void stop_trade_processor_workers();
+
+
+        // void spawn_dispatcher();
+        // void spawn_workers();
+        // void stop_dispatcher();
+        // void stop_workers();
         
 
 
     public:
-        TradeEngine(int n_symbols,int n_workers,  double threshold_pct, int window_ms,std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> workerDataQueues, double speedup = 1.0);
+        TradeEngine(int n_symbols,
+                    int n_workers,  
+                    double threshold_pct, 
+                    int window_ms,
+                    double speedup = 1.0);
+        void init(const std::vector<std::string>& symbols);
         void run(const std::vector<TradeEvent>& tradeEvents);
         void run(std::vector<TradeEvent>&& tradeEvents);
         void start();
         void stop();
         void print_summary();
         void process_trade(TradeEvent trade);
+        std::unordered_map<std::string, std::shared_ptr<LockFreeQueue<Order>>> getSymbolQueues();
 
 
 };

@@ -29,15 +29,14 @@ int main() {
     std::string serverIPAddress = "127.0.0.1";
     int serverPort = 5000;
     int n_workers = 4;
-    size_t capacity = 1024;
-    std::vector<std::shared_ptr<LockFreeQueue<TradeEvent>>> WorkerQueues;
-    WorkerQueues.resize(n_workers);
-    for (int i = 0; i < n_workers; ++i) {
-        WorkerQueues[i] = std::make_shared<LockFreeQueue<TradeEvent>>(capacity);
-    }
+    
+    const std::vector<std::string>& symbols = {"AAPL","MSFT","GOOG","AMZN","INTC"};
 
-    Client client(serverIPAddress,serverPort,n_workers,WorkerQueues);
-    TradeEngine tradeEngine(n_symbols,n_workers, threshold_pct,window_ms,WorkerQueues, speed_up);
+    TradeEngine tradeEngine(n_symbols,n_workers, threshold_pct,window_ms, speed_up);
+    tradeEngine.init(symbols);
+
+    Client client(serverIPAddress,serverPort,n_workers, tradeEngine.getSymbolQueues());
+
     std::cout << "!!!!!!!!!!!!!!!!!";
     client.start();
     std::thread listenerThread([&client]() {
@@ -50,9 +49,10 @@ int main() {
         tradeEngine.start();
     });
     
+
     listenerThread.join();
     engineThread.join();
-    tradeEngine.print_summary();
+    // tradeEngine.print_summary();
     client.stop();
     tradeEngine.stop();
     return 0;
