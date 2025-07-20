@@ -5,6 +5,7 @@ import threading
 import pandas as pd
 import os
 from glob import glob
+from tqdm import tqdm
 
 DATA_DIR = './data'  # Folder where your message CSVs are stored
 
@@ -24,12 +25,13 @@ def load_all_messages(data_dir):
 
 def stream_messages(conn, addr, message_df, delay_per_event=0.01):
     print(f"Client connected: {addr}")
+    sending_df = message_df[:5000]
     with conn:
-        for _, row in message_df[:100].iterrows():
+        for _, row in tqdm(sending_df.iterrows(), total=len(sending_df), desc="Sending events"):
             event = {
                 "timestamp": row["time"],
                 "symbol": row["symbol"],
-                "price": round(row["price"], 4),
+                "price": round(row["price"], 4) / 10000,
                 "type": int(row["type"]),
                 "order_id": int(row["order_id"]),
                 "direction": int(row["direction"]),
@@ -38,11 +40,13 @@ def stream_messages(conn, addr, message_df, delay_per_event=0.01):
             conn.sendall((json.dumps(event) + "\n").encode('utf-8'))
             time.sleep(delay_per_event)
 
+
 def main():
     host = '127.0.0.1'
     port = 5000
     print("Loading all message CSVs...")
     message_df = load_all_messages(DATA_DIR)
+    # message_df = pd.read_csv(DATA_DIR + '/sample.csv')
     print(f"Loaded {len(message_df)} total events from {DATA_DIR}")
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

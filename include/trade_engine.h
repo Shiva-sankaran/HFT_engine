@@ -33,9 +33,7 @@ class TradeEngine {
         bool shutdown_ = false;
         std::atomic<bool> running_;
 
-        std::chrono::microseconds window_time_;
-        std::unordered_map<std::string,SymbolStats> symbolStats_;
-        GlobalStats globalStats_;
+
 
         std::thread dispatcher;
         std::vector<std::thread> workers;
@@ -63,6 +61,8 @@ class TradeEngine {
         void start_trade_processor_workers();
         void stop_order_book_workers();
         void stop_trade_processor_workers();
+        std::unordered_map<std::string, SymbolStats> getAllSymbolStats();
+
 
 
         // void spawn_dispatcher();
@@ -84,7 +84,8 @@ class TradeEngine {
         void start();
         void stop();
         void print_summary();
-        void process_trade(TradeEvent trade);
+
+        // void process_trade(TradeEvent trade);
         std::unordered_map<std::string, std::shared_ptr<LockFreeQueue<Order>>> getSymbolQueues();
 
 

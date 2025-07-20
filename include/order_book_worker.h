@@ -4,7 +4,7 @@
 #include <lock_free_queue.h>
 #include <order.h>
 #include <trade_event.h>
-
+#include <orderbook.h>
 
 #include <memory>
 #include <string>
@@ -14,11 +14,12 @@
 class OrderBookWorker
 {
 private:
-    
+    std::string symbol;
     std::shared_ptr<LockFreeQueue<Order>> orderQueue;
     std::shared_ptr<LockFreeQueue<TradeEvent>> tradeQueue;
+    OrderBook orderBook_;
+
 public:
-    std::string symbol;
     OrderBookWorker(std::string symbol,std::shared_ptr<LockFreeQueue<Order>> orderQueue, std::shared_ptr<LockFreeQueue<TradeEvent>> tradeQueue);
     ~ OrderBookWorker();
     void start();

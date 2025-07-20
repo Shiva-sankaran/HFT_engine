@@ -21,14 +21,13 @@ struct GlobalStats {
 struct SymbolStats {
     std::deque<TradeEvent> window;
     long double vwap_numerator = 0;
+    long long  running_volume = 0;
     long long total_volume = 0;
     long long total_trades = 0;
     long long total_alerts = 0;
 
     long long total_latency = 0;
-    long long total_lock_latency = 0;
-
-
+    long long wait_latency = 0;
 
 };
 

@@ -10,10 +10,11 @@ OrderBookWorker::OrderBookWorker(
     :
     symbol(symbol),
     orderQueue(orderQueue),
-    tradeQueue(tradeQueue)
+    tradeQueue(tradeQueue),
+    orderBook_(symbol)
     {
 
-}
+    }
 
 OrderBookWorker::~ OrderBookWorker()
 {
@@ -28,7 +29,6 @@ void OrderBookWorker::start(){
         _mm_pause();
         }
 
-        // TradeEvent trade = workerDataQueues[i]->pop_blocking();
         if (order.isPoisonPill) break;  // Exit this thread
         process_order(order);
     }
@@ -45,16 +45,28 @@ void OrderBookWorker::stop(){
 
 void OrderBookWorker::process_order(Order& order){
 
-    std::cout << "[Order Received] "
-          << "ID=" << order.orderId
-          << ", Symbol=" << order.symbol
-          << ", Side=" << (order.side == Side::BUY ? "BUY" : "SELL")
-          << ", Type=" << static_cast<int>(order.type)
-          << ", Price=" << order.price
-          << ", Volume=" << order.volume
-          << ", Timestamp=" << order.timestamp.count()
-          << "us"
-          << ", PoisonPill=" << std::boolalpha << order.isPoisonPill
-          << std::endl;
+    Logger::get("orders")->info("[Order Received] ID={} | Symbol={} | Side={} | Type={} | Price={} | Volume={} | Timestamp={}us | PoisonPill={}",
+    order.orderId,
+    order.symbol,
+    (order.side == Side::BUY ? "BUY" : "SELL"),
+    static_cast<int>(order.type) + 1,
+    order.price,
+    order.volume,
+    order.timestamp.count(),
+    order.isPoisonPill);
+
+
+    std::optional<TradeEvent> maybeTrade = orderBook_.handleOrder(order);
+    
+    if (maybeTrade.has_value()) {
+
+        Logger::get("trades")->info("[Trade Queued] TradeID={} | Price={} | Volume={}",
+    maybeTrade->tradeID,
+    maybeTrade->price,
+    maybeTrade->volume);
+    maybeTrade->created_timestamp = std::chrono::steady_clock::now();
+    tradeQueue->enque(maybeTrade.value());
+        
+    }
 
 }

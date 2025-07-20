@@ -20,8 +20,14 @@
 #include "network/client.h"
 #include "lock_free_queue.h"
 
+#include<logger.h>
+
+
 
 int main() {
+
+    Logger::init(); 
+
     int n_symbols = 4;
     double threshold_pct = 3.0;
     int window_ms = 10000;
@@ -49,10 +55,9 @@ int main() {
         tradeEngine.start();
     });
     
-
     listenerThread.join();
     engineThread.join();
-    // tradeEngine.print_summary();
+    tradeEngine.print_summary();
     client.stop();
     tradeEngine.stop();
     return 0;

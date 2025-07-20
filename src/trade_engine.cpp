@@ -9,8 +9,7 @@ TradeEngine::TradeEngine(int n_symbols, int n_workers, double threshold_pct, int
     threshold_pct_(threshold_pct),
     window_ms_(window_ms),
     speedup_(speedup),
-    running_(true),
-    window_time_(window_ms)
+    running_(true)
     {
         std::cout<<"Trade Engine Intialized"<<std::endl;
         latency_log_ << "SYMBOL,TIMESTAMP,LATENCY(ns)\n";
@@ -45,7 +44,9 @@ void TradeEngine::init(const std::vector<std::string>& symbols) {
 
         auto tradeProcessor = std::make_unique<TradeProcessor>(
             sym,
-            tradeQueue
+            tradeQueue,
+            window_ms_,
+            threshold_pct_
         );
 
         TradeProcessors.emplace_back(std::move(tradeProcessor));
@@ -104,41 +105,111 @@ void TradeEngine::stop_trade_processor_workers(){
     }
 }
 
+std::unordered_map<std::string, SymbolStats> TradeEngine::getAllSymbolStats(){
+    std::unordered_map<std::string, SymbolStats> symbolStats;
 
-void TradeEngine::print_summary(){
-    std::cout << "\nSummary:\n";
-    std::cout << "Total trades: " << globalStats_.total_trades << '\n';
-    std::cout << "Total alerts: " << globalStats_.total_alerts << '\n';
-    std::cout << "Total Latency: " << globalStats_.total_latency/globalStats_.total_trades << "ns\n";
-    std::cout << "Wait Latency: " << globalStats_.wait_latency/globalStats_.total_trades << "ns\n";
-    std::cout << "Processing Latency: " << globalStats_.processing_latency/globalStats_.total_trades << "ns\n";
-    for (const auto& [symbol,stat] : symbolStats_) {
-        std::cout << "  " << symbol << ": " << stat.total_alerts << " alerts\n";
-
-    }
-    std::cout << "Average latency per symbol" << std::endl;
-    for (const auto& [symbol,stat] : symbolStats_) {
-        std::cout<< "  " << symbol << ": " << stat.total_latency/stat.total_trades << "ns\n";
-
+    for(auto& tp: TradeProcessors){
+        symbolStats[tp->return_symbol()] = tp->return_stats();
     }
 
-
-    std::cout <<"Total Latency Histogram Bins" <<std::endl;
-    {
-        std::lock_guard<std::mutex> lock(globalStats_.latency_mutex);
-        std::sort(globalStats_.latency_history.begin(), globalStats_.latency_history.end());
-        if (!globalStats_.latency_history.empty()) {
-            size_t n = globalStats_.latency_history.size();
-            std::cout << "P50 latency: " << globalStats_.latency_history[n / 2] << "ns\n";
-            std::cout << "P90 latency: " << globalStats_.latency_history[(n * 90) / 100] << "ns\n";
-            std::cout << "P99 latency: " << globalStats_.latency_history[(n * 99) / 100] << "ns\n";
-        }
-    }
-
-    std::cout << "Symbol to worker thread mapping" << std::endl;
-
+    return symbolStats;
 
 }
+
+void TradeEngine::print_summary() {
+    auto stats = getAllSymbolStats();
+
+    // Column headers
+    std::cout << std::left << std::setw(10) << "Symbol"
+              << std::right << std::setw(12) << "Trades"
+              << std::setw(12) << "Volume"
+              << std::setw(16) << "VWAP"
+              << std::setw(16) << "Proc Latency (ns)"
+              << std::setw(16) << "Wait Latency (ns)"
+              << std::setw(10) << "Alerts"
+              << std::endl;
+
+    std::cout << std::string(92, '-') << std::endl;
+
+    // Accumulators for averages
+    long long total_trades = 0;
+    long long total_volume = 0;
+    long double total_vwap_numerator = 0;
+    long long total_latency = 0;
+    long long total_wait_latency = 0;
+    long long total_alerts = 0;
+
+    for (const auto& [symbol, stat] : stats) {
+        long double vwap = stat.total_volume > 0 ? stat.vwap_numerator / stat.total_volume : 0;
+
+        std::cout << std::left << std::setw(10) << symbol
+                  << std::right << std::setw(12) << stat.total_trades
+                  << std::setw(12) << stat.total_volume
+                  << std::setw(16) << std::fixed << std::setprecision(4) << vwap
+                  << std::setw(16) << (stat.total_trades > 0 ? stat.total_latency / stat.total_trades : 0)
+                  << std::setw(16) << (stat.total_trades > 0 ? stat.wait_latency / stat.total_trades : 0)
+                  << std::setw(10) << stat.total_alerts
+                  << std::endl;
+
+        // Aggregate
+        total_trades += stat.total_trades;
+        total_volume += stat.total_volume;
+        total_vwap_numerator += stat.vwap_numerator;
+        total_latency += stat.total_latency;
+        total_wait_latency += stat.wait_latency;
+        total_alerts += stat.total_alerts;
+    }
+
+    std::cout << std::string(92, '=') << std::endl;
+
+    std::cout << std::left << std::setw(10) << "AVERAGE"
+              << std::right << std::setw(12) << total_trades
+              << std::setw(12) << total_volume
+              << std::setw(16) << std::fixed << std::setprecision(4)
+              << (total_volume > 0 ? total_vwap_numerator / total_volume : 0)
+              << std::setw(16)
+              << (total_trades > 0 ? total_latency / total_trades : 0)
+              << std::setw(16)
+              << (total_trades > 0 ? total_wait_latency / total_trades : 0)
+              << std::setw(10) << total_alerts
+              << std::endl;
+}
+
+
+// void TradeEngine::print_summary(){
+//     std::cout << "\nSummary:\n";
+//     std::cout << "Total trades: " << globalStats_.total_trades << '\n';
+//     std::cout << "Total alerts: " << globalStats_.total_alerts << '\n';
+//     std::cout << "Total Latency: " << globalStats_.total_latency/globalStats_.total_trades << "ns\n";
+//     std::cout << "Wait Latency: " << globalStats_.wait_latency/globalStats_.total_trades << "ns\n";
+//     std::cout << "Processing Latency: " << globalStats_.processing_latency/globalStats_.total_trades << "ns\n";
+//     for (const auto& [symbol,stat] : symbolStats_) {
+//         std::cout << "  " << symbol << ": " << stat.total_alerts << " alerts\n";
+
+//     }
+//     std::cout << "Average latency per symbol" << std::endl;
+//     for (const auto& [symbol,stat] : symbolStats_) {
+//         std::cout<< "  " << symbol << ": " << stat.total_latency/stat.total_trades << "ns\n";
+
+//     }
+
+
+//     std::cout <<"Total Latency Histogram Bins" <<std::endl;
+//     {
+//         std::lock_guard<std::mutex> lock(globalStats_.latency_mutex);
+//         std::sort(globalStats_.latency_history.begin(), globalStats_.latency_history.end());
+//         if (!globalStats_.latency_history.empty()) {
+//             size_t n = globalStats_.latency_history.size();
+//             std::cout << "P50 latency: " << globalStats_.latency_history[n / 2] << "ns\n";
+//             std::cout << "P90 latency: " << globalStats_.latency_history[(n * 90) / 100] << "ns\n";
+//             std::cout << "P99 latency: " << globalStats_.latency_history[(n * 99) / 100] << "ns\n";
+//         }
+//     }
+
+//     std::cout << "Symbol to worker thread mapping" << std::endl;
+
+
+// }
 
 
 
@@ -250,7 +321,5 @@ void TradeEngine::print_summary(){
 
 //     latency_log_ << symbol << "," << trade.timestamp.count() << "," << latency << "\n";
 //     latency_log_.flush();
-
-    
 
 // }
