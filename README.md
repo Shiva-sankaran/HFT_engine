@@ -273,5 +273,3 @@ Here are important areas for improvement and extension to move the system toward
 
 ---
 
-Each of these tasks targets a distinct aspect of a performant real-world system: threading architecture, low-latency design, production observability, extensibility, and robustness. You can pick based on where you want to go next — performance, analytics, or system design.
-
